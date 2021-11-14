@@ -1,13 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.Text;
 using Sandbox.ModAPI;
-using Sandbox.Common.ObjectBuilders;
+using VRage.Game;
 using VRage.Game.ModAPI;
 using VRage.Game.Components;
-using VRage.Game.Entity;
 using VRage.ModAPI;
-using VRage.ObjectBuilders;
 using VRage.Utils;
 using VRageMath;
 
@@ -16,15 +13,18 @@ namespace JamacSpaceGameMod
     [MySessionComponentDescriptor(MyUpdateOrder.BeforeSimulation)]
     public class NoPlayerAngularDamping : MySessionComponentBase
     {
-        
-        private HashSet<IMyEntity> characterEntitiesSet = new HashSet<IMyEntity>();
-        private List<IMyEntity> characterEntitiesList = new List<IMyEntity>();
+        private HashSet<IMyEntity> characterEntities = new HashSet<IMyEntity>();
         private Vector3D lastAngularVelocity;
         private Vector3D lastSupportNormal;
         private bool supported = false;
 
+        const float dt = 0.01666667f;
+
         public override void BeforeStart()
         {
+            if(MyAPIGateway.Multiplayer.MultiplayerActive && !MyAPIGateway.Multiplayer.IsServer)
+                return;
+
             // Run for all existing characters
             var entities = new HashSet<IMyEntity>();
             MyAPIGateway.Entities.GetEntities(entities);
@@ -43,16 +43,23 @@ namespace JamacSpaceGameMod
             MyLog.Default.WriteLineAndConsole("NoPlayerAngularDamping: Setup complete");
         }
 
+        protected override void UnloadData()
+        {
+            // Unregister callback on world close
+            foreach(IMyEntity entity in characterEntities)
+            {
+                OnEntityRemove(entity);
+            }
+        }
+        
         public override void UpdateBeforeSimulation()
         {
-            foreach(IMyEntity entity in characterEntitiesList)
+            foreach(IMyEntity entity in characterEntities)
             {
                 if(entity != null && entity.Physics != null)
                 {
                     try
                     {
-                        float dt = 0.01666667f;
-
                         IMyCharacter character = (IMyCharacter) entity;
 
                         // check if current movement state is one where player *could* be standing on a surface
@@ -95,7 +102,7 @@ namespace JamacSpaceGameMod
                                 MatrixD worldMatrix = entity.PositionComp.WorldMatrixRef;
                                 MatrixD newWorldMatrix = MatrixD.Transform(worldMatrix.GetOrientation(), rotation);
                                 newWorldMatrix.Translation = worldMatrix.Translation;
-                                entity.PositionComp.SetWorldMatrix(newWorldMatrix);
+                                entity.PositionComp.SetWorldMatrix(ref newWorldMatrix);
                             }
                         }
                         else
@@ -117,17 +124,15 @@ namespace JamacSpaceGameMod
         {
             if(entity != null && entity is IMyCharacter)
             {
-                characterEntitiesSet.Add(entity);
-                characterEntitiesList.Add(entity);
+                characterEntities.Add(entity);
             }
         }
 
         public void OnEntityRemove(IMyEntity entity)
         {
-            if(entity != null && characterEntitiesSet.Contains(entity))
+            if(characterEntities.Contains(entity))
             {
-                characterEntitiesSet.Remove(entity);
-                characterEntitiesList.Remove(entity);
+                characterEntities.Remove(entity);
             }
         }
     }
