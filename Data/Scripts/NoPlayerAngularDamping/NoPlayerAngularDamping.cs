@@ -46,10 +46,10 @@ namespace JamacSpaceGameMod
         protected override void UnloadData()
         {
             // Unregister callback on world close
-            foreach(IMyEntity entity in characterEntities)
-            {
-                OnEntityRemove(entity);
-            }
+            MyAPIGateway.Entities.OnEntityAdd -= OnEntityAdd;
+            MyAPIGateway.Entities.OnEntityRemove -= OnEntityRemove;
+
+            characterEntities.Clear();
         }
         
         public override void UpdateBeforeSimulation()
